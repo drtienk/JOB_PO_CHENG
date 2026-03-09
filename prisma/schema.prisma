@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RemoteType {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  UNKNOWN
+}
+
+enum JobStatus {
+  NEW
+  REVIEWING
+  SAVED
+  APPLIED
+  REJECTED
+  ARCHIVED
+}
+
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  name            String?
+  searchProfiles  SearchProfile[]
+  reviewActions   ReviewAction[]
+  preferences     UserPreference?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model SearchProfile {
+  id               String      @id @default(cuid())
+  userId           String
+  name             String
+  keywords         String[]
+  excludeKeywords  String[]
+  titleKeywords    String[]
+  locationKeywords String[]
+  remoteType       RemoteType?
+  salaryMin        Int?
+  employmentType   EmploymentType?
+  experienceLevel  String?
+  targetCompanies  String[]
+  excludeCompanies String[]
+  sourceWebsites   String[]
+  searchFrequency  String
+  isActive         Boolean     @default(true)
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs             SearchRun[]
+  jobPostings      JobPosting[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model JobSource {
+  id          String     @id @default(cuid())
+  key         String     @unique
+  displayName String
+  type        String
+  enabled     Boolean    @default(true)
+  runs        SearchRun[]
+  rawPayloads JobPostingRaw[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model SearchRun {
+  id            String          @id @default(cuid())
+  profileId     String
+  sourceId      String
+  status        String
+  startedAt     DateTime        @default(now())
+  finishedAt    DateTime?
+  discovered    Int             @default(0)
+  inserted      Int             @default(0)
+  deduped       Int             @default(0)
+  errorMessage  String?
+  profile       SearchProfile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  source        JobSource       @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  rawPayloads   JobPostingRaw[]
+}
+
+model JobPosting {
+  id                 String         @id @default(cuid())
+  externalId         String?
+  source             String
+  sourceJobUrl       String
+  title              String
+  company            String
+  location           String?
+  remoteType         RemoteType     @default(UNKNOWN)
+  employmentType     EmploymentType @default(UNKNOWN)
+  salaryMin          Int?
+  salaryMax          Int?
+  currency           String?
+  descriptionSnippet String?
+  fullDescription    String?
+  postedAt           DateTime?
+  discoveredAt       DateTime       @default(now())
+  profileId          String
+  dedupeHash         String
+  status             JobStatus      @default(NEW)
+  starred            Boolean        @default(false)
+  notes              String?
+  rawPayload         Json?
+  profile            SearchProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  reviewActions      ReviewAction[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([source, externalId])
+  @@index([dedupeHash])
+}
+
+model JobPostingRaw {
+  id         String    @id @default(cuid())
+  sourceId   String
+  runId      String
+  sourceUrl  String?
+  payload    Json
+  fetchedAt  DateTime  @default(now())
+  source     JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  run        SearchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model ReviewAction {
+  id           String    @id @default(cuid())
+  userId       String
+  jobPostingId String
+  action       String
+  notes        String?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+}
+
+model UserPreference {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  savedFilters   Json?
+  summaryEmail   String?
+  timezone       String?
+  dailyDigestOn  Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
